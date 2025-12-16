@@ -91,6 +91,48 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    function copyOutput(elementId) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+
+        const raw = (el.innerText || el.textContent || '').split('\n');
+        const filteredLines = raw
+            .map(line => line.trim())
+            .filter(line => line && !line.startsWith('#'));
+
+        if (!filteredLines.length) return;
+
+        // On aplatit en une seule ligne pour un collage propre dans le terminal
+        const text = filteredLines.join(' ');
+
+        const doCopy = (value) => {
+            const ta = document.createElement('textarea');
+            ta.value = value;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try {
+                document.execCommand('copy');
+            } finally {
+                document.body.removeChild(ta);
+            }
+        };
+
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).catch(() => doCopy(text));
+        } else {
+            doCopy(text);
+        }
+    }
+
+    function copyToClipboard() {
+        copyOutput('code-output');
+    }
+
+    window.copyOutput = copyOutput;
+    window.copyToClipboard = copyToClipboard;
+
     function updateCommand() {
         const chain = chainSelect ? chainSelect.value : 'INPUT';
         const protocol = protocolSelect ? protocolSelect.value : 'tcp';
@@ -407,6 +449,39 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         },
         {
+            id: 'windump-windows',
+            keywords: ['windump', 'tcpdump', 'capture', 'reseau', 'windows'],
+            title: 'Installer et utiliser WinDump (équivalent tcpdump sous Windows)',
+            os: 'multi',
+            perOs: {
+                windows: [
+                    { cmd: 'winget install Wireshark.Wireshark', desc: 'Installer Wireshark, qui installe également le driver Npcap nécessaire pour capturer le trafic réseau.' },
+                    { cmd: '# Télécharger WinDump', desc: 'Rendez-vous sur le site officiel WinDump/Npcap pour récupérer windump.exe et placez-le dans un dossier de travail (ex: C:\\Tools).'},
+                    { cmd: 'setx PATH "%PATH%;C:\\Tools"', desc: 'Ajouter le dossier contenant windump.exe au PATH Windows (ouvrez un nouveau terminal après cette commande).'},
+                    { cmd: 'windump -D', desc: 'Lister les interfaces disponibles et noter le numéro correspondant à la carte réseau à surveiller.' },
+                    { cmd: 'windump -i 1 tcp port 80', desc: 'Exemple : capturer le trafic TCP sur le port 80 sur l’interface numéro 1.' }
+                ],
+                macos: [],
+                linux: []
+            }
+        },
+        {
+            id: 'nmap-windows',
+            keywords: ['nmap', 'scan', 'ports', 'windows'],
+            title: 'Installer et utiliser nmap sous Windows',
+            os: 'multi',
+            perOs: {
+                windows: [
+                    { cmd: 'winget install Insecure.Nmap', desc: 'Installer nmap via winget sur Windows (inclut ncat, nping...).' },
+                    { cmd: 'nmap -sn 192.168.1.0/24', desc: 'Effectuer un ping sweep du réseau local pour découvrir les hôtes actifs.' },
+                    { cmd: 'nmap -sS -Pn -T4 -p 1-1024 192.168.1.10', desc: 'Effectuer un scan TCP SYN rapide des ports 1 à 1024 sur l’hôte 192.168.1.10.' },
+                    { cmd: 'nmap -sV -sC -O 192.168.1.10', desc: 'Scanner les services, versions et certains scripts par défaut sur une cible.' }
+                ],
+                macos: [],
+                linux: []
+            }
+        },
+        {
             id: 'git-github-push',
             keywords: ['git', 'github', 'push', 'repository', 'remote', 'commit'],
             title: 'Initialiser un dépôt Git et pousser sur GitHub (A à Z)',
@@ -437,6 +512,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     { cmd: 'git push -u origin main', desc: 'Pousser la branche main et définir le suivi par défaut.' }
                 ]
             }
+        },
+        {
+            id: 'git-workflow-3-steps',
+            keywords: ['git', 'workflow', 'push', 'commit', 'add', 'base'],
+            title: 'Flux de travail Git en 3 étapes (add / commit / push)',
+            os: 'multi',
+            steps: [
+                { cmd: 'git add .', desc: '1. Enregistrer (Stage) : Demande à Git de suivre toutes les modifications que vous avez faites dans le projet.' },
+                { cmd: 'git commit -m "Description de mon changement"', desc: '2. Valider (Commit) : Crée un instantané historique de ces changements, stocké en local sur votre machine.' },
+                { cmd: 'git push origin main', desc: '3. Publier (Push) : Envoie tous les nouveaux commits de votre machine locale vers votre dépôt sur GitHub (branche main).' }
+            ]
         }
     ];
 
