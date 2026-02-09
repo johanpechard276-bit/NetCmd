@@ -1,0 +1,18 @@
+# Configuration des en-têtes de sécurité
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # Empêche ton site d'être affiché dans une iframe (Anti-Clickjacking)
+    X-Frame-Options = "DENY"
+    
+    # Protection contre les failles XSS
+    X-XSS-Protection = "1; mode=block"
+    
+    # Empêche le navigateur de deviner le type de fichier (MIME sniffing)
+    X-Content-Type-Options = "nosniff"
+    
+    # Politique de confidentialité (ne pas fuiter les données vers d'autres sites)
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    
+    # (Optionnel) Force le HTTPS strict pendant 1 an
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
