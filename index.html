@@ -826,9 +826,12 @@
 
                     <div id="module-cheatsheet" class="hidden">
                         <div class="space-y-4">
-                            <div>
-                                <h2 class="text-lg font-medium text-white tracking-tight">Cheat-sheet</h2>
-                                <p class="text-xs text-zinc-500 mt-1">Aide-mémoire rapide. Clique une commande pour la copier.</p>
+                            <div class="flex items-end justify-between gap-4">
+                                <div>
+                                    <h2 class="text-lg font-medium text-white tracking-tight">Cheat-sheet</h2>
+                                    <p class="text-xs text-zinc-500 mt-1">Aide-mémoire rapide. Clique une commande pour la copier.</p>
+                                </div>
+                                <button id="cheat-export" class="shrink-0 text-[10px] px-2 py-1 rounded border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition-colors flex items-center gap-1"><iconify-icon icon="lucide:download" width="12"></iconify-icon>Exporter (.md)</button>
                             </div>
                             <div id="cheatsheet-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
                         </div>
@@ -852,6 +855,7 @@
 
                             <div class="flex items-center justify-between">
                                 <span id="arsenal-count" class="text-[11px] text-zinc-500"></span>
+                                <button id="arsenal-export" class="shrink-0 text-[10px] px-2 py-1 rounded border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition-colors flex items-center gap-1"><iconify-icon icon="lucide:download" width="12"></iconify-icon>Exporter (.md)</button>
                             </div>
 
                             <div id="arsenal-results" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>

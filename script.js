@@ -58,6 +58,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // Alias historique
     window.copyOutput = function (id) { window.copyTextFromElement(id); };
 
+    // Télécharge un contenu texte sous forme de fichier
+    function downloadFile(filename, text, mime) {
+        const blob = new Blob([text], { type: (mime || 'text/plain') + ';charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('Fichier exporté : ' + filename);
+    }
+
     function escapeHtml(str) {
         return String(str).replace(/[&<>"']/g, (c) => (
             { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
@@ -921,6 +935,17 @@ document.addEventListener('DOMContentLoaded', () => {
             html += '</div>';
         });
         grid.innerHTML = html;
+
+        const exp = $('cheat-export');
+        if (exp) exp.addEventListener('click', () => {
+            let md = '# Cheat-sheet NetCmd Pro\n\n';
+            cheatData.forEach(cat => {
+                md += '## ' + cat.title + '\n\n';
+                cat.items.forEach(pair => { md += '- `' + pair[0] + '` — ' + pair[1] + '\n'; });
+                md += '\n';
+            });
+            downloadFile('netcmd-cheatsheet.md', md, 'text/markdown');
+        });
         cheatRendered = true;
     }
 
@@ -1035,24 +1060,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const q = $('arsenal-query');
             if (q) q.addEventListener('input', renderArsenal);
+
+            const exp = $('arsenal-export');
+            if (exp) exp.addEventListener('click', () => {
+                const list = arsenalMatches();
+                let md = '# Arsenal NetCmd Pro' + (arsenalActiveCat !== 'Tous' ? ' — ' + arsenalActiveCat : '') + '\n\n';
+                md += '> ' + list.length + ' outil(s). Référence pédagogique — usage autorisé uniquement.\n\n';
+                list.forEach(t => {
+                    md += '## ' + t.name + '  _(' + t.cat + ')_\n\n';
+                    md += t.purpose + '\n\n';
+                    md += '- **Usage :** `' + t.use + '`\n';
+                    if (t.att && t.att.length) md += '- **ATT&CK :** ' + t.att.join(', ') + '\n';
+                    if (t.note) md += '- **Note :** ' + t.note + '\n';
+                    md += '\n';
+                });
+                downloadFile('netcmd-arsenal.md', md, 'text/markdown');
+            });
             arsenalWired = true;
         }
         renderArsenal();
+    }
+
+    function arsenalMatches() {
+        const query = norm($('arsenal-query') ? $('arsenal-query').value : '');
+        const words = query.split(/\s+/).filter(Boolean);
+        return arsenal.filter(t => {
+            if (arsenalActiveCat !== 'Tous' && t.cat !== arsenalActiveCat) return false;
+            if (!words.length) return true;
+            const hay = norm(t.name + ' ' + t.cat + ' ' + t.purpose + ' ' + t.kw.join(' '));
+            return words.every(w => hay.includes(w));
+        });
     }
 
     function renderArsenal() {
         const container = $('arsenal-results');
         const countEl = $('arsenal-count');
         if (!container) return;
-        const query = norm($('arsenal-query') ? $('arsenal-query').value : '');
-        const words = query.split(/\s+/).filter(Boolean);
-
-        const matches = arsenal.filter(t => {
-            if (arsenalActiveCat !== 'Tous' && t.cat !== arsenalActiveCat) return false;
-            if (!words.length) return true;
-            const hay = norm(t.name + ' ' + t.cat + ' ' + t.purpose + ' ' + t.kw.join(' '));
-            return words.every(w => hay.includes(w));
-        });
+        const matches = arsenalMatches();
 
         if (countEl) countEl.textContent = matches.length + ' outil(s) — base pédagogique, ' + arsenal.length + ' au total';
 
@@ -1152,17 +1196,25 @@ document.addEventListener('DOMContentLoaded', () => {
         red: 'border-l-red-500 text-red-400'
     };
 
+    // Tactiques MITRE ATT&CK associées à chaque phase
+    const methoTactics = {
+        1: ['TA0043 Reconnaissance'], 2: ['TA0007 Discovery'], 3: ['TA0009 Collection'],
+        4: ['TA0001 Initial Access'], 5: ['TA0002 Execution', 'TA0011 Command & Control'],
+        6: ['TA0008 Lateral Movement'], 7: ['TA0004 Priv. Esc', 'TA0003 Persistence', 'TA0010 Exfiltration']
+    };
+
     let methoRendered = false;
     function renderMethodology() {
         if (methoRendered) return;
         const container = $('methodology-steps');
         if (!container) return;
-        let html = '';
+        let html = '<div class="flex justify-end mb-1"><button id="metho-export" class="text-[10px] px-2 py-1 rounded border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition-colors flex items-center gap-1"><iconify-icon icon="lucide:download" width="12"></iconify-icon>Exporter (.md)</button></div>';
         methodologySteps.forEach(s => {
             const c = methoColors[s.color] || methoColors.blue;
             const colorText = c.split(' ')[1];
+            const tactics = (methoTactics[s.num] || []).map(t => '<span class="text-[9px] font-mono px-1 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/20" title="Tactique MITRE ATT&CK">' + escapeHtml(t) + '</span>').join(' ');
             html += '<div class="bg-zinc-900/20 border border-zinc-800 border-l-2 ' + c.split(' ')[0] + ' rounded-xl p-5">' +
-                '<div class="flex items-start justify-between gap-4 mb-3">' +
+                '<div class="flex items-start justify-between gap-4 mb-2">' +
                     '<div class="flex items-center gap-3">' +
                         '<div class="w-9 h-9 rounded-lg bg-zinc-800/60 flex items-center justify-center ' + colorText + ' shrink-0"><iconify-icon icon="' + s.icon + '" width="18"></iconify-icon></div>' +
                         '<div><div class="text-[10px] text-zinc-500 uppercase tracking-wider">Phase ' + s.num + '</div>' +
@@ -1170,6 +1222,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     '</div>' +
                     (s.goto ? '<button class="metho-goto shrink-0 text-[10px] px-2 py-1 rounded border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition-colors flex items-center gap-1" data-goto="' + s.goto + '"><iconify-icon icon="lucide:arrow-right" width="12"></iconify-icon>Ouvrir l\'outil</button>' : '') +
                 '</div>' +
+                '<div class="flex flex-wrap gap-1 mb-3">' + tactics + '</div>' +
                 '<p class="text-xs text-zinc-300 leading-relaxed mb-3">' + escapeHtml(s.objective) + '</p>' +
                 '<div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">' +
                     '<div class="space-y-1">' +
@@ -1188,6 +1241,20 @@ document.addEventListener('DOMContentLoaded', () => {
         container.innerHTML = html;
         container.querySelectorAll('.metho-goto').forEach(btn => {
             btn.addEventListener('click', () => showModule(btn.getAttribute('data-goto')));
+        });
+        const exp = $('metho-export');
+        if (exp) exp.addEventListener('click', () => {
+            let md = '# Méthodologie d\'une cyberattaque (kill chain)\n\n> Référence pédagogique — usage sur systèmes autorisés uniquement.\n\n';
+            methodologySteps.forEach(s => {
+                md += '## Phase ' + s.num + ' — ' + s.phase + '\n\n';
+                md += '**Tactiques ATT&CK :** ' + (methoTactics[s.num] || []).join(', ') + '\n\n';
+                md += s.objective + '\n\n';
+                md += '- **Outils :** ' + s.tools.join(', ') + '\n';
+                md += '- **Exemple :** `' + s.example + '`\n';
+                md += '- **Détection :** ' + s.detection + '\n';
+                md += '- **Défense :** ' + s.defense + '\n\n';
+            });
+            downloadFile('netcmd-methodologie.md', md, 'text/markdown');
         });
         methoRendered = true;
     }
