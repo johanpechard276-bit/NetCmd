@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // =========================================================================
 
     const moduleKeys = ['firewall', 'pivoting', 'traffic', 'scan', 'subnet',
-        'webaudit', 'revshell', 'encoder', 'library', 'favorites', 'cheatsheet'];
+        'webaudit', 'revshell', 'encoder', 'library', 'favorites', 'cheatsheet', 'methodology'];
     const modules = {};
     moduleKeys.forEach(k => { modules[k] = $('module-' + k); });
 
@@ -77,7 +77,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const prettyNames = {
         firewall: 'Pare-feu', pivoting: 'Pivoting', traffic: 'Trafic', scan: 'Scan',
         subnet: 'Calculateur IP', webaudit: 'Sécurité Web', revshell: 'Reverse Shells',
-        encoder: 'Encodeur', library: 'Bibliothèque', favorites: 'Favoris', cheatsheet: 'Cheat-sheet'
+        encoder: 'Encodeur', library: 'Bibliothèque', favorites: 'Favoris', cheatsheet: 'Cheat-sheet',
+        methodology: 'Méthodologie'
     };
 
     function updateSidebarStyle(activeModuleId) {
@@ -105,6 +106,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (modKey === 'favorites') renderFavorites();
         if (modKey === 'firewall') updateFirewallCommand();
         if (modKey === 'cheatsheet') renderCheatsheet();
+        if (modKey === 'methodology') renderMethodology();
     }
 
     document.querySelectorAll('[data-module]').forEach(link => {
@@ -919,6 +921,116 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         grid.innerHTML = html;
         cheatRendered = true;
+    }
+
+    // =========================================================================
+    // 12bis. MÉTHODOLOGIE (KILL CHAIN PÉDAGOGIQUE)
+    // =========================================================================
+
+    const methodologySteps = [
+        {
+            num: 1, phase: 'Reconnaissance (OSINT)', icon: 'lucide:search', color: 'blue', goto: 'webaudit',
+            objective: 'Collecter un maximum d\'informations sur la cible sans interagir directement avec ses systèmes (sources publiques) : noms de domaine, adresses IP, e-mails, technologies, employés.',
+            tools: ['whois', 'nslookup / dig', 'theHarvester', 'Google Dorks', 'Shodan'],
+            example: 'whois exemple.com  →  identifie le propriétaire et les serveurs DNS',
+            detection: 'Phase quasi invisible : elle utilise des sources publiques. On surveille surtout les pics de requêtes DNS/WHOIS et l\'exposition d\'informations sensibles.',
+            defense: 'Limiter les infos publiques (WHOIS privé, pas d\'e-mails exposés), séparer les environnements, surveiller sa surface d\'exposition (ex : alertes Shodan).'
+        },
+        {
+            num: 2, phase: 'Scan & Énumération', icon: 'lucide:radar', color: 'accent', goto: 'scan',
+            objective: 'Cartographier la cible : hôtes actifs, ports ouverts, services et versions, pour identifier les points d\'entrée potentiels.',
+            tools: ['nmap', 'masscan', 'enum4linux', 'gobuster'],
+            example: 'nmap -sV -sC -p- 10.10.10.5  →  ports ouverts + versions des services',
+            detection: 'Très détectable : un scan génère beaucoup de connexions. Les IDS/IPS (Snort, Suricata) et les pare-feux repèrent les balayages de ports.',
+            defense: 'Fermer les ports inutiles, segmenter le réseau (VLAN), limiter le débit de connexions (rate-limiting), déployer un IDS.'
+        },
+        {
+            num: 3, phase: 'Analyse du trafic', icon: 'lucide:activity', color: 'cyan', goto: 'traffic',
+            objective: 'Observer le trafic réseau pour comprendre les protocoles utilisés, repérer des identifiants en clair ou préparer une attaque (ex : man-in-the-middle).',
+            tools: ['tcpdump', 'Wireshark', 'ettercap'],
+            example: 'tcpdump -i eth0 -nn port 80  →  capture le trafic HTTP non chiffré',
+            detection: 'La capture passive est difficile à détecter. Le MITM actif (ARP spoofing) se repère via des tables ARP incohérentes.',
+            defense: 'Chiffrer tout (HTTPS, SSH, VPN), activer le DHCP snooping et la Dynamic ARP Inspection sur les switchs.'
+        },
+        {
+            num: 4, phase: 'Exploitation', icon: 'lucide:shield-alert', color: 'orange', goto: 'webaudit',
+            objective: 'Exploiter une vulnérabilité (injection SQL, faille web, service non patché) pour obtenir un premier accès ou extraire des données.',
+            tools: ['sqlmap', 'Metasploit', 'Burp Suite', 'exploits (searchsploit)'],
+            example: 'sqlmap -u "http://cible/page.php?id=1" --dbs  →  teste l\'injection SQL',
+            detection: 'Un WAF et les logs applicatifs repèrent les payloads malveillants (motifs SQL, pics d\'erreurs 500).',
+            defense: 'Requêtes préparées (anti-injection), mises à jour régulières, WAF, principe du moindre privilège sur la base de données.'
+        },
+        {
+            num: 5, phase: 'Accès & Reverse Shell', icon: 'lucide:terminal', color: 'emerald', goto: 'revshell',
+            objective: 'Établir un canal de contrôle depuis la machine compromise vers l\'attaquant — souvent une connexion inverse (reverse shell) qui contourne les pare-feux entrants.',
+            tools: ['netcat', 'bash / python / powershell', 'msfvenom'],
+            example: 'nc -lvnp 4444  (côté attaquant, en écoute)  +  payload côté cible',
+            detection: 'Connexions sortantes inhabituelles vers des IP/ports suspects ; processus enfants anormaux (ex : bash lançant une socket).',
+            defense: 'Filtrer le trafic SORTANT (egress filtering), EDR surveillant les processus, listes blanches d\'applications.'
+        },
+        {
+            num: 6, phase: 'Pivoting & Mouvement latéral', icon: 'lucide:route', color: 'purple', goto: 'pivoting',
+            objective: 'Rebondir depuis la machine compromise pour atteindre des systèmes internes inaccessibles directement, et étendre le contrôle sur le réseau.',
+            tools: ['ssh (-D / -L / -R)', 'proxychains', 'chisel', 'ligolo-ng'],
+            example: 'ssh -D 1080 -N user@pivot  →  proxy SOCKS vers le réseau interne',
+            detection: 'Connexions internes inhabituelles, tunnels SSH longue durée, trafic est-ouest anormal entre segments.',
+            defense: 'Micro-segmentation réseau, surveillance du trafic interne (est-ouest), comptes à privilèges limités, MFA.'
+        },
+        {
+            num: 7, phase: 'Post-exploitation & Persistance', icon: 'lucide:key-round', color: 'red', goto: null,
+            objective: 'Maintenir l\'accès (persistance), élever ses privilèges, récolter des identifiants et exfiltrer les données. Puis effacer ses traces.',
+            tools: ['mimikatz', 'LinPEAS / WinPEAS', 'crontab / services', 'tâches planifiées'],
+            example: 'sudo -l  ·  find / -perm -4000  →  cherche des chemins d\'élévation de privilèges',
+            detection: 'Nouveaux comptes/tâches planifiées, accès anormaux à la mémoire (LSASS), gros transferts sortants (exfiltration).',
+            defense: 'Journalisation centralisée (SIEM), surveillance de l\'intégrité, rotation des secrets, sauvegardes hors-ligne, Credential Guard.'
+        }
+    ];
+
+    const methoColors = {
+        blue: 'border-l-blue-500 text-blue-400', accent: 'border-l-accent-500 text-accent-400',
+        cyan: 'border-l-cyan-500 text-cyan-400', orange: 'border-l-orange-500 text-orange-400',
+        emerald: 'border-l-emerald-500 text-emerald-400', purple: 'border-l-purple-500 text-purple-400',
+        red: 'border-l-red-500 text-red-400'
+    };
+
+    let methoRendered = false;
+    function renderMethodology() {
+        if (methoRendered) return;
+        const container = $('methodology-steps');
+        if (!container) return;
+        let html = '';
+        methodologySteps.forEach(s => {
+            const c = methoColors[s.color] || methoColors.blue;
+            const colorText = c.split(' ')[1];
+            html += '<div class="bg-zinc-900/20 border border-zinc-800 border-l-2 ' + c.split(' ')[0] + ' rounded-xl p-5">' +
+                '<div class="flex items-start justify-between gap-4 mb-3">' +
+                    '<div class="flex items-center gap-3">' +
+                        '<div class="w-9 h-9 rounded-lg bg-zinc-800/60 flex items-center justify-center ' + colorText + ' shrink-0"><iconify-icon icon="' + s.icon + '" width="18"></iconify-icon></div>' +
+                        '<div><div class="text-[10px] text-zinc-500 uppercase tracking-wider">Phase ' + s.num + '</div>' +
+                        '<h3 class="text-sm font-semibold text-white">' + escapeHtml(s.phase) + '</h3></div>' +
+                    '</div>' +
+                    (s.goto ? '<button class="metho-goto shrink-0 text-[10px] px-2 py-1 rounded border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition-colors flex items-center gap-1" data-goto="' + s.goto + '"><iconify-icon icon="lucide:arrow-right" width="12"></iconify-icon>Ouvrir l\'outil</button>' : '') +
+                '</div>' +
+                '<p class="text-xs text-zinc-300 leading-relaxed mb-3">' + escapeHtml(s.objective) + '</p>' +
+                '<div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">' +
+                    '<div class="space-y-1">' +
+                        '<div class="text-zinc-500 uppercase text-[10px] font-bold tracking-wider">Outils</div>' +
+                        '<div class="flex flex-wrap gap-1.5">' + s.tools.map(t => '<span class="px-1.5 py-0.5 rounded bg-zinc-800/60 border border-zinc-800 text-zinc-300 font-mono">' + escapeHtml(t) + '</span>').join('') + '</div>' +
+                        '<div class="mt-2 text-zinc-500 uppercase text-[10px] font-bold tracking-wider">Exemple</div>' +
+                        '<code class="block bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-zinc-200 font-mono break-all">' + escapeHtml(s.example) + '</code>' +
+                    '</div>' +
+                    '<div class="space-y-2">' +
+                        '<div class="p-2 rounded bg-amber-500/5 border border-amber-500/15"><div class="text-amber-400 uppercase text-[10px] font-bold tracking-wider mb-0.5">🔍 Détection (blue team)</div><p class="text-zinc-400 leading-relaxed">' + escapeHtml(s.detection) + '</p></div>' +
+                        '<div class="p-2 rounded bg-emerald-500/5 border border-emerald-500/15"><div class="text-emerald-400 uppercase text-[10px] font-bold tracking-wider mb-0.5">🛡 Défense</div><p class="text-zinc-400 leading-relaxed">' + escapeHtml(s.defense) + '</p></div>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        });
+        container.innerHTML = html;
+        container.querySelectorAll('.metho-goto').forEach(btn => {
+            btn.addEventListener('click', () => showModule(btn.getAttribute('data-goto')));
+        });
+        methoRendered = true;
     }
 
     // =========================================================================
