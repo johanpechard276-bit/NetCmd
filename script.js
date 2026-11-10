@@ -83,7 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // =========================================================================
 
     const moduleKeys = ['firewall', 'pivoting', 'traffic', 'scan', 'subnet',
-        'webaudit', 'revshell', 'encoder', 'library', 'favorites', 'cheatsheet', 'methodology', 'arsenal'];
+        'webaudit', 'revshell', 'encoder', 'library', 'favorites', 'cheatsheet', 'methodology', 'arsenal', 'guides'];
     const modules = {};
     moduleKeys.forEach(k => { modules[k] = $('module-' + k); });
 
@@ -92,7 +92,7 @@ document.addEventListener('DOMContentLoaded', () => {
         firewall: 'Pare-feu', pivoting: 'Pivoting', traffic: 'Trafic', scan: 'Scan',
         subnet: 'Calculateur IP', webaudit: 'Sécurité Web', revshell: 'Reverse Shells',
         encoder: 'Encodeur', library: 'Bibliothèque', favorites: 'Favoris', cheatsheet: 'Cheat-sheet',
-        methodology: 'Méthodologie', arsenal: 'Arsenal'
+        methodology: 'Méthodologie', arsenal: 'Arsenal', guides: 'Guides'
     };
 
     function updateSidebarStyle(activeModuleId) {
@@ -122,6 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (modKey === 'cheatsheet') renderCheatsheet();
         if (modKey === 'methodology') renderMethodology();
         if (modKey === 'arsenal') initArsenal();
+        if (modKey === 'guides') renderGuides();
     }
 
     document.querySelectorAll('[data-module]').forEach(link => {
@@ -947,6 +948,140 @@ document.addEventListener('DOMContentLoaded', () => {
             downloadFile('netcmd-cheatsheet.md', md, 'text/markdown');
         });
         cheatRendered = true;
+    }
+
+    // =========================================================================
+    // 12quater. GUIDES DÉTAILLÉS (PROCÉDURES PÉDAGOGIQUES)
+    // =========================================================================
+
+    const guides = [
+        {
+            id: 'privesc-linux', title: 'Élévation de privilèges — Linux', icon: 'lucide:terminal', color: 'amber',
+            context: 'Après un premier accès (shell utilisateur), objectif : devenir root. On énumère le système à la recherche d\'une mauvaise configuration exploitable.',
+            att: ['T1068', 'T1548.001', 'T1053.003'],
+            steps: [
+                { cmd: 'id ; sudo -l', explain: 'Voir ses groupes et les commandes autorisées en sudo (souvent un chemin direct vers root via GTFOBins).' },
+                { cmd: 'find / -perm -4000 -type f 2>/dev/null', explain: 'Lister les binaires SUID : exécutés avec les droits du propriétaire (souvent root).' },
+                { cmd: 'cat /etc/crontab ; ls -la /etc/cron.*', explain: 'Repérer des tâches planifiées lancées par root pointant vers un script modifiable.' },
+                { cmd: 'uname -a ; cat /etc/os-release', explain: 'Version du noyau / de la distribution → chercher un exploit kernel connu (searchsploit).' },
+                { cmd: './linpeas.sh | tee linpeas.txt', explain: 'Automatiser toute l\'énumération avec LinPEAS et surligner les pistes prometteuses.' }
+            ],
+            detection: 'Exécutions inhabituelles de binaires SUID, lectures massives du système de fichiers, dépôt de scripts dans des répertoires cron.',
+            defense: 'Minimiser les binaires SUID, cron appartenant à root et non modifiables, noyau à jour, montages noexec/nosuid, auditd.'
+        },
+        {
+            id: 'privesc-windows', title: 'Élévation de privilèges — Windows', icon: 'lucide:terminal', color: 'blue',
+            context: 'Depuis un compte utilisateur Windows, objectif : passer Administrateur ou SYSTEM via une mauvaise configuration (service, droits, tâche).',
+            att: ['T1068', 'T1078', 'T1574'],
+            steps: [
+                { cmd: 'whoami /priv', explain: 'Lister ses privilèges. Certains (SeImpersonate, SeBackup) ouvrent des voies d\'escalade connues.' },
+                { cmd: 'systeminfo', explain: 'Version de l\'OS et correctifs installés → identifier un exploit de privilège non patché.' },
+                { cmd: 'whoami /groups', explain: 'Appartenances de groupe et niveau d\'intégrité actuel.' },
+                { cmd: 'winPEASany.exe', explain: 'Audit automatisé : services vulnérables, mots de passe en clair, chemins non cités, AlwaysInstallElevated.' }
+            ],
+            detection: 'Création de services anormaux, usage de privilèges sensibles, processus enfants inhabituels (ex : cmd lancé par un service).',
+            defense: 'Principe du moindre privilège, correctifs à jour, chemins de services entre guillemets, désactiver AlwaysInstallElevated, EDR.'
+        },
+        {
+            id: 'password-cracking', title: 'Cassage de mots de passe (hash)', icon: 'lucide:key-round', color: 'purple',
+            context: 'Tu as récupéré un ou plusieurs hachages (base de données, /etc/shadow, SAM). Objectif : retrouver le mot de passe en clair hors-ligne.',
+            att: ['T1110.002', 'T1003'],
+            steps: [
+                { cmd: 'hashid hash.txt', explain: 'Identifier le type de hachage (MD5, bcrypt, NTLM...) pour choisir le bon mode.' },
+                { cmd: 'hashcat --help | grep -i ntlm', explain: 'Trouver le numéro de mode hashcat correspondant (ex : 1000 pour NTLM).' },
+                { cmd: 'hashcat -m 1000 hash.txt rockyou.txt', explain: 'Attaque par dictionnaire : teste chaque mot d\'une wordlist (la plus efficace au début).' },
+                { cmd: 'hashcat -m 1000 hash.txt rockyou.txt -r rules/best64.rule', explain: 'Ajouter des règles de mutation (majuscules, chiffres, substitutions) pour élargir le dictionnaire.' },
+                { cmd: 'john --format=nt hash.txt --wordlist=rockyou.txt', explain: 'Alternative avec John the Ripper (pratique pour de nombreux formats de fichiers).' }
+            ],
+            detection: 'Le cassage est hors-ligne, donc invisible côté cible. En amont, on détecte l\'accès au magasin de hachages (lecture SAM/shadow, dump LSASS).',
+            defense: 'Mots de passe longs + MFA, algorithmes lents (bcrypt/argon2), sel unique, protection de LSASS (Credential Guard), rotation après fuite.'
+        },
+        {
+            id: 'ad-enum', title: 'Énumération Active Directory', icon: 'lucide:network', color: 'emerald',
+            context: 'Avec un compte de domaine valide (même faible privilège), objectif : cartographier le domaine et trouver un chemin vers l\'Administrateur du domaine.',
+            att: ['T1087.002', 'T1069.002', 'T1558.003'],
+            steps: [
+                { cmd: 'crackmapexec smb 10.0.0.0/24', explain: 'Découvrir les hôtes SMB du réseau, leurs noms et le domaine auquel ils appartiennent.' },
+                { cmd: 'crackmapexec smb <dc> -u user -p pass --users', explain: 'Énumérer les comptes du domaine avec des identifiants valides.' },
+                { cmd: 'GetUserSPNs.py domaine/user:pass -dc-ip <dc> -request', explain: 'Kerberoasting : récupérer des tickets de comptes de service pour casser leur mot de passe hors-ligne.' },
+                { cmd: 'bloodhound-python -d domaine -u user -p pass -c all', explain: 'Collecter les relations du domaine, puis visualiser les chemins d\'attaque dans BloodHound.' }
+            ],
+            detection: 'Requêtes LDAP massives, demandes de tickets Kerberos anormales (Kerberoasting), logons depuis des postes inhabituels.',
+            defense: 'Comptes de service avec mots de passe longs (gMSA), tiering administratif, surveillance LDAP/Kerberos, principe du moindre privilège.'
+        },
+        {
+            id: 'lab-scenario', title: 'Scénario lab complet (fil rouge)', icon: 'lucide:flag', color: 'red',
+            context: 'Enchaînement type d\'un lab (HackTheBox/TryHackMe) : de la découverte au root, en reliant les modules de NetCmd Pro.',
+            att: ['T1595', 'T1190', 'T1068'],
+            steps: [
+                { cmd: 'nmap -sV -sC -p- 10.10.10.5', explain: '1) Scan complet (module Scan) : identifier les services et versions exposés.' },
+                { cmd: 'ffuf -u http://10.10.10.5/FUZZ -w common.txt', explain: '2) Si un service web existe, énumérer les chemins cachés (module Arsenal → Web).' },
+                { cmd: 'sqlmap -u "http://10.10.10.5/p.php?id=1" --dbs', explain: '3) Exploiter une faille trouvée (ici injection SQL — module Sécurité Web).' },
+                { cmd: 'nc -lvnp 4444', explain: '4) Obtenir un shell : listener prêt, puis déclencher un reverse shell (module Reverse Shells).' },
+                { cmd: './linpeas.sh', explain: '5) Énumérer pour l\'élévation de privilèges (guide privesc Linux) jusqu\'à root.' },
+                { cmd: 'ssh -D 1080 -N user@10.10.10.5', explain: '6) Si d\'autres machines existent, pivoter vers le réseau interne (module Pivoting).' }
+            ],
+            detection: 'Chaque étape laisse des traces : scans (IDS), payloads web (WAF), connexions sortantes (EDR), énumération locale (auditd).',
+            defense: 'Défense en profondeur : surface réduite, patchs, WAF, egress filtering, segmentation, journalisation centralisée (SIEM).'
+        }
+    ];
+
+    const guideColors = {
+        amber: 'text-amber-400', blue: 'text-blue-400', purple: 'text-purple-400',
+        emerald: 'text-emerald-400', red: 'text-red-400'
+    };
+
+    let guidesRendered = false;
+    function renderGuides() {
+        if (guidesRendered) return;
+        const list = $('guides-list');
+        if (!list) return;
+        let html = '';
+        guides.forEach(g => {
+            const ct = guideColors[g.color] || 'text-accent-400';
+            const att = (g.att || []).map(a => '<span class="text-[9px] font-mono px-1 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/20">' + escapeHtml(a) + '</span>').join(' ');
+            let steps = '';
+            g.steps.forEach((s, i) => {
+                const uid = 'g-' + g.id + '-' + i;
+                steps += '<div class="space-y-1">' +
+                    '<code id="' + uid + '" class="block bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-[11px] text-zinc-200 font-mono break-all cursor-pointer hover:bg-zinc-800 transition-colors" onclick="copyTextFromElement(\'' + uid + '\')">' + escapeHtml(s.cmd) + '</code>' +
+                    '<p class="text-[11px] text-zinc-400 leading-relaxed ml-1">' + escapeHtml(s.explain) + '</p>' +
+                '</div>';
+            });
+            html += '<details class="group bg-zinc-900/20 border border-zinc-800 rounded-xl overflow-hidden">' +
+                '<summary class="flex items-center justify-between gap-3 cursor-pointer list-none px-5 py-4 hover:bg-zinc-900/40 transition-colors">' +
+                    '<div class="flex items-center gap-3">' +
+                        '<iconify-icon icon="' + g.icon + '" width="18" class="' + ct + ' shrink-0"></iconify-icon>' +
+                        '<span class="text-sm font-semibold text-white">' + escapeHtml(g.title) + '</span>' +
+                    '</div>' +
+                    '<iconify-icon icon="lucide:chevron-down" width="16" class="text-zinc-500 transition-transform group-open:rotate-180 shrink-0"></iconify-icon>' +
+                '</summary>' +
+                '<div class="px-5 pb-5 space-y-4 border-t border-zinc-800/50 pt-4">' +
+                    '<div class="flex flex-wrap gap-1">' + att + '</div>' +
+                    '<p class="text-xs text-zinc-300 leading-relaxed">' + escapeHtml(g.context) + '</p>' +
+                    '<div class="space-y-3">' + steps + '</div>' +
+                    '<div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-[11px]">' +
+                        '<div class="p-2 rounded bg-amber-500/5 border border-amber-500/15"><div class="text-amber-400 uppercase text-[10px] font-bold tracking-wider mb-0.5">🔍 Détection</div><p class="text-zinc-400 leading-relaxed">' + escapeHtml(g.detection) + '</p></div>' +
+                        '<div class="p-2 rounded bg-emerald-500/5 border border-emerald-500/15"><div class="text-emerald-400 uppercase text-[10px] font-bold tracking-wider mb-0.5">🛡 Défense</div><p class="text-zinc-400 leading-relaxed">' + escapeHtml(g.defense) + '</p></div>' +
+                    '</div>' +
+                '</div>' +
+            '</details>';
+        });
+        list.innerHTML = html;
+
+        const exp = $('guides-export');
+        if (exp) exp.addEventListener('click', () => {
+            let md = '# Guides détaillés — NetCmd Pro\n\n> Référence pédagogique — labs et systèmes autorisés uniquement.\n\n';
+            guides.forEach(g => {
+                md += '## ' + g.title + '\n\n';
+                md += '**ATT&CK :** ' + (g.att || []).join(', ') + '\n\n';
+                md += g.context + '\n\n';
+                g.steps.forEach((s, i) => { md += (i + 1) + '. `' + s.cmd + '`\n   - ' + s.explain + '\n'; });
+                md += '\n- **Détection :** ' + g.detection + '\n- **Défense :** ' + g.defense + '\n\n';
+            });
+            downloadFile('netcmd-guides.md', md, 'text/markdown');
+        });
+        guidesRendered = true;
     }
 
     // =========================================================================
