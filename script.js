@@ -69,7 +69,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // =========================================================================
 
     const moduleKeys = ['firewall', 'pivoting', 'traffic', 'scan', 'subnet',
-        'webaudit', 'revshell', 'encoder', 'library', 'favorites', 'cheatsheet', 'methodology'];
+        'webaudit', 'revshell', 'encoder', 'library', 'favorites', 'cheatsheet', 'methodology', 'arsenal'];
     const modules = {};
     moduleKeys.forEach(k => { modules[k] = $('module-' + k); });
 
@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
         firewall: 'Pare-feu', pivoting: 'Pivoting', traffic: 'Trafic', scan: 'Scan',
         subnet: 'Calculateur IP', webaudit: 'Sécurité Web', revshell: 'Reverse Shells',
         encoder: 'Encodeur', library: 'Bibliothèque', favorites: 'Favoris', cheatsheet: 'Cheat-sheet',
-        methodology: 'Méthodologie'
+        methodology: 'Méthodologie', arsenal: 'Arsenal'
     };
 
     function updateSidebarStyle(activeModuleId) {
@@ -107,6 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (modKey === 'firewall') updateFirewallCommand();
         if (modKey === 'cheatsheet') renderCheatsheet();
         if (modKey === 'methodology') renderMethodology();
+        if (modKey === 'arsenal') initArsenal();
     }
 
     document.querySelectorAll('[data-module]').forEach(link => {
@@ -921,6 +922,164 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         grid.innerHTML = html;
         cheatRendered = true;
+    }
+
+    // =========================================================================
+    // 12ter. ARSENAL (RECHERCHE D'OUTILS PAR BESOIN)
+    // =========================================================================
+
+    // Normalise (minuscule + sans accents) pour une recherche tolérante
+    function norm(s) {
+        return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    }
+
+    // Base d'outils — référence pédagogique. att[] = IDs MITRE ATT&CK.
+    const arsenal = [
+        // --- Reconnaissance ---
+        { name: 'theHarvester', cat: 'Reconnaissance', purpose: 'Collecte d\'e-mails, sous-domaines et noms depuis des sources publiques (OSINT).', use: 'theHarvester -d exemple.com -b all', kw: ['osint', 'email', 'reconnaissance', 'sous-domaine', 'passif'], att: ['T1589', 'T1590'] },
+        { name: 'whois', cat: 'Reconnaissance', purpose: 'Informations d\'enregistrement d\'un domaine (propriétaire, registrar, DNS).', use: 'whois exemple.com', kw: ['domaine', 'proprietaire', 'osint', 'dns'], att: ['T1590'] },
+        { name: 'dnsrecon / dig', cat: 'Reconnaissance', purpose: 'Énumération DNS : enregistrements, transferts de zone, sous-domaines.', use: 'dnsrecon -d exemple.com', kw: ['dns', 'sous-domaine', 'zone', 'enumeration'], att: ['T1590.002'] },
+        { name: 'Shodan', cat: 'Reconnaissance', purpose: 'Moteur de recherche des appareils exposés sur Internet (ports, bannières, IoT).', use: 'shodan search "apache country:FR"', kw: ['osint', 'iot', 'exposition', 'internet', 'passif'], att: ['T1596'] },
+
+        // --- Scan & réseau ---
+        { name: 'nmap', cat: 'Scan & réseau', purpose: 'Référence du scan : hôtes actifs, ports ouverts, services, versions, scripts NSE.', use: 'nmap -sV -sC -p- 10.10.10.5', kw: ['scan', 'port', 'service', 'decouverte', 'reseau'], att: ['T1046', 'T1595.001'] },
+        { name: 'masscan', cat: 'Scan & réseau', purpose: 'Scanner de ports ultra-rapide, adapté aux grandes plages d\'adresses.', use: 'masscan 10.0.0.0/8 -p80,443 --rate 10000', kw: ['scan', 'port', 'rapide', 'plage', 'masse'], att: ['T1046'] },
+        { name: 'rustscan', cat: 'Scan & réseau', purpose: 'Scan de ports rapide qui enchaîne ensuite sur nmap.', use: 'rustscan -a 10.10.10.5 -- -sV', kw: ['scan', 'port', 'rapide'], att: ['T1046'] },
+        { name: 'netdiscover', cat: 'Scan & réseau', purpose: 'Découverte d\'hôtes sur le réseau local via ARP.', use: 'netdiscover -r 192.168.1.0/24', kw: ['arp', 'decouverte', 'local', 'hote'], att: ['T1016'] },
+
+        // --- Web ---
+        { name: 'gobuster / ffuf', cat: 'Web', purpose: 'Brute-force de répertoires, fichiers et sous-domaines d\'un site web.', use: 'ffuf -u http://cible/FUZZ -w liste.txt', kw: ['web', 'fuzzing', 'repertoire', 'directory', 'brute'], att: ['T1595.003'] },
+        { name: 'nikto', cat: 'Web', purpose: 'Scanner de vulnérabilités web (fichiers dangereux, mauvaises configs, versions).', use: 'nikto -h http://cible', kw: ['web', 'vulnerabilite', 'scan', 'serveur'], att: ['T1595.002'] },
+        { name: 'Burp Suite', cat: 'Web', purpose: 'Proxy d\'interception pour analyser et manipuler le trafic HTTP(S) d\'une appli web.', use: 'Proxy → intercepter / Repeater / Intruder', kw: ['web', 'proxy', 'interception', 'http', 'requete'], att: ['T1185'] },
+        { name: 'sqlmap', cat: 'Web', purpose: 'Détection et exploitation automatisées d\'injections SQL.', use: 'sqlmap -u "http://cible/p.php?id=1" --dbs', kw: ['sql', 'injection', 'base de donnees', 'web', 'dump'], att: ['T1190'], note: 'Uniquement sur une cible autorisée.' },
+        { name: 'wpscan', cat: 'Web', purpose: 'Scanner de sécurité spécialisé WordPress (plugins, thèmes, utilisateurs).', use: 'wpscan --url http://cible --enumerate u', kw: ['wordpress', 'web', 'cms', 'plugin', 'scan'], att: ['T1595.002'] },
+
+        // --- Mots de passe ---
+        { name: 'hashcat', cat: 'Mots de passe', purpose: 'Cassage de hachages (mots de passe) accéléré par GPU, très nombreux formats.', use: 'hashcat -m 0 hash.txt rockyou.txt', kw: ['hash', 'mot de passe', 'password', 'crack', 'gpu', 'bruteforce'], att: ['T1110.002'] },
+        { name: 'John the Ripper', cat: 'Mots de passe', purpose: 'Cassage de mots de passe polyvalent (hash, fichiers protégés, zip...).', use: 'john --wordlist=rockyou.txt hash.txt', kw: ['hash', 'mot de passe', 'password', 'crack', 'john'], att: ['T1110.002'] },
+        { name: 'hydra', cat: 'Mots de passe', purpose: 'Brute-force d\'authentification en ligne (SSH, FTP, HTTP, RDP...).', use: 'hydra -l admin -P liste.txt ssh://cible', kw: ['bruteforce', 'ssh', 'login', 'mot de passe', 'force brute'], att: ['T1110.001'], note: 'Uniquement sur tes propres services.' },
+        { name: 'CeWL', cat: 'Mots de passe', purpose: 'Génère une liste de mots personnalisée à partir du contenu d\'un site.', use: 'cewl http://cible -w liste.txt', kw: ['wordlist', 'dictionnaire', 'mot de passe', 'web'], att: ['T1110'] },
+
+        // --- Élévation de privilèges ---
+        { name: 'LinPEAS', cat: 'Élévation de privilèges', purpose: 'Script d\'audit Linux qui repère automatiquement les chemins d\'escalade de privilèges.', use: './linpeas.sh', kw: ['privesc', 'linux', 'elevation', 'privilege', 'audit', 'root'], att: ['T1068', 'T1083'] },
+        { name: 'WinPEAS', cat: 'Élévation de privilèges', purpose: 'Équivalent Windows : recherche de mauvaises configs pour passer admin/SYSTEM.', use: 'winpeas.exe', kw: ['privesc', 'windows', 'elevation', 'privilege', 'admin'], att: ['T1068'] },
+        { name: 'GTFOBins', cat: 'Élévation de privilèges', purpose: 'Base de binaires Unix détournables pour contourner des restrictions (sudo, SUID).', use: 'Chercher le binaire sur gtfobins.github.io', kw: ['privesc', 'sudo', 'suid', 'linux', 'binaire', 'contournement'], att: ['T1548.001'] },
+        { name: 'pspy', cat: 'Élévation de privilèges', purpose: 'Observe les processus et tâches cron sans privilèges root (repère des exécutions exploitables).', use: './pspy64', kw: ['privesc', 'cron', 'processus', 'linux', 'surveillance'], att: ['T1053.003'] },
+
+        // --- Active Directory ---
+        { name: 'BloodHound', cat: 'Active Directory', purpose: 'Cartographie des relations et chemins d\'attaque dans un domaine Active Directory.', use: 'Collecteur SharpHound puis analyse graphe', kw: ['active directory', 'ad', 'domaine', 'graphe', 'windows', 'chemin'], att: ['T1069.002', 'T1482'] },
+        { name: 'CrackMapExec', cat: 'Active Directory', purpose: 'Couteau suisse AD/SMB : énumération, test d\'identifiants, exécution à distance.', use: 'crackmapexec smb 10.0.0.0/24 -u u -p p', kw: ['ad', 'smb', 'active directory', 'laterale', 'identifiant'], att: ['T1021.002', 'T1110'] },
+        { name: 'impacket', cat: 'Active Directory', purpose: 'Suite de scripts Python pour les protocoles Windows (secretsdump, psexec, Kerberos).', use: 'secretsdump.py domaine/u:p@cible', kw: ['ad', 'kerberos', 'smb', 'windows', 'hash', 'psexec'], att: ['T1003.006', 'T1558'] },
+        { name: 'Responder', cat: 'Active Directory', purpose: 'Empoisonne LLMNR/NBT-NS pour capturer des identifiants NetNTLM sur le LAN.', use: 'responder -I eth0', kw: ['ad', 'llmnr', 'netntlm', 'capture', 'mitm', 'windows'], att: ['T1557.001'], note: 'Technique intrusive : réseau autorisé uniquement.' },
+
+        // --- Exploitation ---
+        { name: 'Metasploit', cat: 'Exploitation', purpose: 'Framework d\'exploitation : modules d\'exploit, payloads, post-exploitation.', use: 'msfconsole → use exploit/...', kw: ['exploit', 'payload', 'framework', 'metasploit'], att: ['T1203', 'T1059'] },
+        { name: 'searchsploit', cat: 'Exploitation', purpose: 'Recherche hors-ligne d\'exploits publics (base Exploit-DB).', use: 'searchsploit apache 2.4', kw: ['exploit', 'cve', 'recherche', 'exploit-db'], att: ['T1588.005'] },
+        { name: 'msfvenom', cat: 'Exploitation', purpose: 'Génère des payloads autonomes (reverse shell, meterpreter) dans divers formats.', use: 'msfvenom -p <payload> LHOST=.. -f elf', kw: ['payload', 'shellcode', 'reverse', 'generer'], att: ['T1587.001'], note: 'Pour tes labs / cibles autorisées.' },
+
+        // --- Pivoting ---
+        { name: 'chisel', cat: 'Pivoting', purpose: 'Tunnel TCP/UDP sur HTTP, pratique pour pivoter à travers un pare-feu.', use: 'chisel server --reverse  /  chisel client', kw: ['pivot', 'tunnel', 'proxy', 'socks', 'rebond'], att: ['T1572', 'T1090'] },
+        { name: 'ligolo-ng', cat: 'Pivoting', purpose: 'Pivoting moderne via interface TUN, accès transparent au réseau interne.', use: 'Agent côté cible + proxy côté attaquant', kw: ['pivot', 'tunnel', 'reseau interne', 'laterale'], att: ['T1572'] },
+        { name: 'proxychains', cat: 'Pivoting', purpose: 'Force n\'importe quel outil à passer par un proxy (SOCKS d\'un tunnel SSH).', use: 'proxychains nmap -sT 192.168.1.5', kw: ['pivot', 'proxy', 'socks', 'tunnel'], att: ['T1090'] },
+
+        // --- Sniffing & MITM ---
+        { name: 'Wireshark', cat: 'Sniffing & MITM', purpose: 'Analyseur de paquets graphique : inspection fine des protocoles réseau.', use: 'Capturer sur interface + filtres d\'affichage', kw: ['sniff', 'paquet', 'trafic', 'analyse', 'reseau', 'capture'], att: ['T1040'] },
+        { name: 'tcpdump', cat: 'Sniffing & MITM', purpose: 'Capture de paquets en ligne de commande, idéale sur serveur distant.', use: 'tcpdump -i eth0 -nn port 80', kw: ['sniff', 'paquet', 'trafic', 'capture', 'cli'], att: ['T1040'] },
+        { name: 'bettercap', cat: 'Sniffing & MITM', purpose: 'Boîte à outils MITM moderne (ARP spoofing, interception, modules réseau).', use: 'bettercap -iface eth0', kw: ['mitm', 'arp', 'spoofing', 'interception', 'reseau'], att: ['T1557.002'], note: 'Technique intrusive : réseau autorisé uniquement.' },
+
+        // --- Wireless ---
+        { name: 'aircrack-ng', cat: 'Wireless', purpose: 'Suite d\'audit Wi-Fi : capture de handshakes et test de robustesse des clés WPA.', use: 'aircrack-ng capture.cap -w rockyou.txt', kw: ['wifi', 'wireless', 'wpa', 'handshake', 'sans-fil'], att: ['T1040'], note: 'Uniquement sur ton propre réseau Wi-Fi.' },
+        { name: 'Kismet', cat: 'Wireless', purpose: 'Détecteur de réseaux sans fil et sniffer (Wi-Fi, Bluetooth), cartographie.', use: 'kismet -c wlan0', kw: ['wifi', 'wireless', 'detection', 'sans-fil', 'bluetooth'], att: ['T1040'] },
+
+        // --- Forensics & stégano ---
+        { name: 'Volatility', cat: 'Forensics & stégano', purpose: 'Analyse de dumps mémoire RAM (processus, connexions, artefacts) — forensics/CTF.', use: 'vol.py -f mem.raw windows.pslist', kw: ['forensics', 'memoire', 'ram', 'ctf', 'analyse', 'investigation'], att: ['T1003'] },
+        { name: 'binwalk', cat: 'Forensics & stégano', purpose: 'Analyse et extraction de fichiers embarqués dans un binaire/firmware.', use: 'binwalk -e firmware.bin', kw: ['forensics', 'firmware', 'extraction', 'stegano', 'ctf'], att: [] },
+        { name: 'steghide', cat: 'Forensics & stégano', purpose: 'Cache ou extrait des données dans des images/audio (stéganographie, CTF).', use: 'steghide extract -sf image.jpg', kw: ['stegano', 'cache', 'image', 'ctf', 'forensics'], att: ['T1027.003'] },
+
+        // --- Résilience / DoS (défensif) ---
+        { name: 'hping3', cat: 'Résilience / DoS', purpose: 'Forge de paquets TCP/IP pour tester la robustesse réseau et la résilience d\'un pare-feu.', use: 'hping3 -S <ton-hote> -p 80 -c 10  (test autorisé)', kw: ['ddos', 'dos', 'deni de service', 'flood', 'stress', 'paquet', 'resilience'], att: ['T1498.001'], note: '⚠ Tester uniquement TES propres systèmes. Viser un tiers = déni de service, illégal. Côté défense : rate-limiting, SYN cookies, anti-DDoS amont.' },
+        { name: 'slowhttptest', cat: 'Résilience / DoS', purpose: 'Évalue la résistance d\'un serveur web aux attaques « lentes » (Slowloris) — pour durcir ta config.', use: 'slowhttptest -u http://ton-serveur  (test autorisé)', kw: ['ddos', 'dos', 'slowloris', 'web', 'stress', 'resilience', 'deni de service'], att: ['T1499.003'], note: '⚠ Uniquement sur tes serveurs. Défense : timeouts stricts, reverse-proxy, mod_reqtimeout.' },
+        { name: 'Locust / wrk', cat: 'Résilience / DoS', purpose: 'Tests de charge légitimes : mesurer les limites de performance de TON application.', use: 'wrk -t4 -c100 -d30s http://ton-app', kw: ['charge', 'stress', 'performance', 'resilience', 'load test', 'dos'], att: [], note: 'Outil de test de charge, pensé pour tes propres services.' },
+
+        // --- C2 & post-exploitation ---
+        { name: 'mimikatz', cat: 'C2 & post-exploit', purpose: 'Extraction d\'identifiants Windows depuis la mémoire (hash, tickets Kerberos).', use: 'sekurlsa::logonpasswords', kw: ['credential', 'windows', 'hash', 'kerberos', 'post-exploit', 'lsass'], att: ['T1003.001'], note: 'Technique sensible : labs / cibles autorisées.' },
+        { name: 'Sliver / Havoc', cat: 'C2 & post-exploit', purpose: 'Frameworks de command-and-control pour piloter des implants lors d\'un engagement red team.', use: 'Générer un implant + session C2', kw: ['c2', 'command control', 'implant', 'red team', 'post-exploit'], att: ['T1071'], note: 'Usage red team autorisé uniquement.' },
+        { name: 'LaZagne', cat: 'C2 & post-exploit', purpose: 'Récupère les mots de passe stockés localement (navigateurs, Wi-Fi, logiciels).', use: 'lazagne.exe all', kw: ['credential', 'mot de passe', 'post-exploit', 'local'], att: ['T1555'], note: 'Sur une machine que tu contrôles / cible autorisée.' }
+    ];
+
+    let arsenalWired = false;
+    let arsenalActiveCat = 'Tous';
+
+    function initArsenal() {
+        const catWrap = $('arsenal-cats');
+        if (!catWrap) return;
+        if (!arsenalWired) {
+            const cats = ['Tous'].concat(Array.from(new Set(arsenal.map(t => t.cat))));
+            catWrap.innerHTML = cats.map(c =>
+                '<button type="button" class="arsenal-cat text-[11px] px-2.5 py-1 rounded-md border transition-colors ' +
+                (c === arsenalActiveCat ? 'bg-accent-600 text-white border-accent-500/60' : 'bg-zinc-950 text-zinc-300 border-zinc-800 hover:bg-zinc-800') +
+                '" data-cat="' + escapeHtml(c) + '">' + escapeHtml(c) + '</button>'
+            ).join('');
+
+            catWrap.querySelectorAll('.arsenal-cat').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    arsenalActiveCat = btn.getAttribute('data-cat');
+                    catWrap.querySelectorAll('.arsenal-cat').forEach(b => {
+                        const on = b.getAttribute('data-cat') === arsenalActiveCat;
+                        b.className = 'arsenal-cat text-[11px] px-2.5 py-1 rounded-md border transition-colors ' +
+                            (on ? 'bg-accent-600 text-white border-accent-500/60' : 'bg-zinc-950 text-zinc-300 border-zinc-800 hover:bg-zinc-800');
+                    });
+                    renderArsenal();
+                });
+            });
+
+            const q = $('arsenal-query');
+            if (q) q.addEventListener('input', renderArsenal);
+            arsenalWired = true;
+        }
+        renderArsenal();
+    }
+
+    function renderArsenal() {
+        const container = $('arsenal-results');
+        const countEl = $('arsenal-count');
+        if (!container) return;
+        const query = norm($('arsenal-query') ? $('arsenal-query').value : '');
+        const words = query.split(/\s+/).filter(Boolean);
+
+        const matches = arsenal.filter(t => {
+            if (arsenalActiveCat !== 'Tous' && t.cat !== arsenalActiveCat) return false;
+            if (!words.length) return true;
+            const hay = norm(t.name + ' ' + t.cat + ' ' + t.purpose + ' ' + t.kw.join(' '));
+            return words.every(w => hay.includes(w));
+        });
+
+        if (countEl) countEl.textContent = matches.length + ' outil(s) — base pédagogique, ' + arsenal.length + ' au total';
+
+        if (!matches.length) {
+            container.innerHTML = '<p class="text-zinc-500 italic col-span-full">Aucun outil trouvé. Essaie « scan », « mot de passe », « ad », « pivot », « ddos », « forensics »...</p>';
+            return;
+        }
+
+        container.innerHTML = matches.map(t => {
+            const att = (t.att && t.att.length)
+                ? '<div class="flex flex-wrap gap-1 mt-2">' + t.att.map(a => '<span class="text-[9px] font-mono px-1 py-0.5 rounded bg-blue-500/10 text-blue-300 border border-blue-500/20" title="Technique MITRE ATT&CK">' + escapeHtml(a) + '</span>').join('') + '</div>'
+                : '';
+            const note = t.note
+                ? '<div class="mt-2 text-[10px] text-amber-300/80 bg-amber-500/5 border border-amber-500/15 rounded px-2 py-1 flex items-start gap-1"><iconify-icon icon="lucide:alert-triangle" width="12" class="mt-0.5 shrink-0"></iconify-icon><span>' + escapeHtml(t.note) + '</span></div>'
+                : '';
+            const useId = 'ars-' + Math.random().toString(36).slice(2, 9);
+            return '<div class="bg-zinc-900/20 border border-zinc-800 rounded-xl p-4 flex flex-col hover:border-zinc-700 transition-colors">' +
+                '<div class="flex items-center justify-between gap-2 mb-1">' +
+                    '<h3 class="text-sm font-semibold text-white font-mono">' + escapeHtml(t.name) + '</h3>' +
+                    '<span class="text-[9px] text-zinc-400 border border-zinc-800 bg-zinc-800/40 px-1.5 py-0.5 rounded uppercase tracking-wide shrink-0">' + escapeHtml(t.cat) + '</span>' +
+                '</div>' +
+                '<p class="text-[11px] text-zinc-300 leading-relaxed flex-1">' + escapeHtml(t.purpose) + '</p>' +
+                '<div class="mt-2 text-[10px] text-zinc-500 uppercase font-bold tracking-wider">Usage type</div>' +
+                '<code id="' + useId + '" class="block bg-zinc-950 border border-zinc-800 rounded px-2 py-1.5 text-[11px] text-zinc-200 font-mono break-all cursor-pointer hover:bg-zinc-800 transition-colors" onclick="copyTextFromElement(\'' + useId + '\')">' + escapeHtml(t.use) + '</code>' +
+                att + note +
+            '</div>';
+        }).join('');
     }
 
     // =========================================================================

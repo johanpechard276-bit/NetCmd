@@ -108,6 +108,10 @@
                     <div class="space-y-0.5">
                         <div class="px-2 py-1.5 text-[11px] font-medium text-zinc-500 uppercase tracking-wider">Apprentissage</div>
 
+                        <a href="#" data-module="arsenal" class="flex items-center gap-2.5 px-2 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900/60 rounded transition-all">
+                            <iconify-icon icon="lucide:swords" width="16" stroke-width="1.5"></iconify-icon>
+                            <span>Arsenal (recherche d'outils)</span>
+                        </a>
                         <a href="#" data-module="methodology" class="flex items-center gap-2.5 px-2 py-1.5 text-sm text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900/60 rounded transition-all">
                             <iconify-icon icon="lucide:graduation-cap" width="16" stroke-width="1.5"></iconify-icon>
                             <span>Méthodologie d'attaque</span>
@@ -827,6 +831,30 @@
                                 <p class="text-xs text-zinc-500 mt-1">Aide-mémoire rapide. Clique une commande pour la copier.</p>
                             </div>
                             <div id="cheatsheet-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
+                        </div>
+                    </div>
+
+                    <div id="module-arsenal" class="hidden">
+                        <div class="space-y-5">
+                            <div>
+                                <h2 class="text-lg font-medium text-white tracking-tight">Arsenal — recherche d'outils</h2>
+                                <p class="text-xs text-zinc-500 mt-1">Décris ton besoin (ex : « scan », « mot de passe », « active directory », « ddos ») et trouve les outils adaptés, leur usage et leur rôle dans une attaque.</p>
+                                <p class="text-[10px] text-amber-500/80 mt-1">Référence pédagogique. N'utilise ces outils que sur tes propres systèmes ou des environnements d'entraînement autorisés.</p>
+                            </div>
+
+                            <div class="bg-zinc-900/20 border border-zinc-800 rounded-xl p-5 space-y-4">
+                                <div class="relative">
+                                    <iconify-icon icon="lucide:search" width="16" class="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"></iconify-icon>
+                                    <input id="arsenal-query" type="text" class="w-full bg-zinc-950 border border-zinc-800 text-zinc-200 text-sm rounded-md pl-9 pr-3 py-2.5 placeholder-zinc-700 focus:outline-none focus:border-accent-500/50 focus:ring-1 focus:ring-accent-500/20" placeholder="Que veux-tu faire ? ex : cracker un hash, sniffer le réseau, pivoter...">
+                                </div>
+                                <div id="arsenal-cats" class="flex flex-wrap gap-2"></div>
+                            </div>
+
+                            <div class="flex items-center justify-between">
+                                <span id="arsenal-count" class="text-[11px] text-zinc-500"></span>
+                            </div>
+
+                            <div id="arsenal-results" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
                         </div>
                     </div>
 
