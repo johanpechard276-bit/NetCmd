@@ -1,0 +1,6 @@
+# Dossier de liaison Netlify (local, par machine)
+.netlify/
+
+# Dépendances / divers
+node_modules/
+.DS_Store
